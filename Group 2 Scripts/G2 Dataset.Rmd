@@ -1,0 +1,192 @@
+---
+title: "Group 2 Project"
+author: "Stephen Schwartz, Eric Winans, Keith Ehnle, Dylan Guenzburger"
+date: "9/21/2020"
+output: html_document
+---
+
+The first step in this project was to select the data set that our group would transform and analyze. We selected "The Office" which was the data set in tidytuesday on March 17th of this year. It includes the Imdb ratings for each episode of the show, the number of fan votes, and categorizes the data by season. In the following code, we read in that data set from the tidytuesday website as well as load the necessary packages for our analysis.
+
+```{r}
+office_ratings <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-17/office_ratings.csv')
+write.table(office_ratings, file = "../Group 2 Data/office_ratings.txt")
+head(office_ratings)
+```
+
+Here we loaded the required packages for our analysis.
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(psych)
+library(gplots)
+```
+
+**Transforming the dataset:**
+
+In this portion of code, we simplified the data set to include only those variables that we were interested in for this analysis. We did not feel that the title of the episode would be useful for our purposes and as a result we excluded that column from our final data set.
+
+```{r}
+THE_OFFICE <- office_ratings[,-3]
+THE_OFFICE <- THE_OFFICE %>% 
+  mutate(season = factor(season))
+write.table(THE_OFFICE, file = "../Group 2 Data/THE_OFFICE.txt")
+```
+
+**Summary Statistics:**
+
+Using the updated data set from the previous section, this code provides the summary statistics for the four specific variables that we chose to move forward with. While the summary for the variable "season" is not particularly helpful because it is a discrete, explanatory variable, the other summaries are useful for our understanding of this data set. This summary also includes the descriptive statistics for each variable grouped by season so each of the unique data frames seen below represent the descriptive statistics for each season of The Office.
+
+```{r}
+summary(THE_OFFICE)
+describe(THE_OFFICE[,-c(1,5)])
+describeBy(THE_OFFICE[,-5], group = "season")
+```
+
+We next wanted to look at the average Imdb rating for each season of The Office. To do this, we transformed the original data set to take the mean rating of each season as well as the mean of the number of votes cast by the viewers. We believe that the rating clearly shows the reception of each season and the number of votes indicates the interaction of the audience with the ongoing seasons of The Office. The transformations that follow will allow us to better visualize these changes over time. While we did both transformations at the same time, this portion of our project will only focus on an analysis of the IMDB rating. Our analysis of the total votes data set follows immediately after.
+
+```{r}
+mean_imdb <- THE_OFFICE %>% 
+  group_by(season) %>% 
+  summarise(imdb_rating = mean(imdb_rating, na.rm = TRUE))
+mean_votes <- THE_OFFICE %>% 
+  group_by(season) %>% 
+  summarise(total_votes = mean(total_votes, na.rm = TRUE)) 
+(season_means <- merge(mean_imdb, mean_votes))
+write.table(season_means, file = "../Group 2 Text Files/season_means.txt")
+```
+
+**Analysis for IMDB Rating by Season:**
+
+Our analysis of this data set begins with an Analysis of Variance for the IMDB Rating by each season of The Office. We first needed to fit the model and then conducted tests of fixed effects on the data. Resulting from this analysis, we have several really good visualizations of the data set that help us understand the variance present in this data and identify the presence of outliers.
+
+```{r}
+#fitting the model 
+(fit_imdb_rating <- aov(imdb_rating ~ season, data = THE_OFFICE))
+#Type III test of fixed effect
+drop1(fit_imdb_rating,~.,test="F")
+```
+
+The Type III test of fixed effects from our ANOVA model shows the average IMDB rating is significantly different across the different seasons of the TV show. Diagnostic plots below show we have fairly even variance across the different season with the exceptions of a few outliers. Other than those outliers, most data points follow a normal distribution shown in the Normal Q-Q plot.
+
+```{r}
+#diagnostic plots
+plot(fit_imdb_rating)
+```
+
+```{r}
+#ploting the means:
+plotmeans(imdb_rating~season, data = THE_OFFICE, xlab="Season",
+ylab="IMDB Rating", main="Mean Plot\nwith 95% CI")
+```
+
+```{r}
+#Saved into Group 2 Figures:
+pdf(file = "../Group 2 Figures/Ratings Mean Plot.pdf")
+  plotmeans(imdb_rating~season, data = THE_OFFICE, xlab="Season",
+  ylab="IMDB Rating", main="Mean Plot\nwith 95% CI")
+```
+
+Seasons 3, 4, and 5 had the highest average IMDB rating across their episodes. These seasons were sigificanly different than the rating for seasons 1, 8, and 9. It is evident that the was a significant improvement in ratings beyond the first season and ratings trended downward as the seasons progressed.
+
+**Data Visualization (IMDb Rating):**
+
+We used a boxplot to create the initial visualization of this data which helped us to identify the presence of outliers as well as very different variances and means. From this starting point, the ANOVA tables and this boxplot, we began to try and look at the data in different ways.
+
+```{r}
+ggplot(THE_OFFICE, aes(x=season, y=imdb_rating)) + 
+  geom_boxplot(color = "blue", fill = "orange")+
+  labs(x = "Season", y = "IMDB Rating")+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  ggtitle("Average IMDB Rating by Season")
+  ggsave(file.path("../Group 2 Figures/IMDB_Rating_by_Season.pdf"))
+```
+
+This graph plots the IMDB Rating by season but displays each episode individually to better visualize the change in rating over time throughout each season of The Office.
+
+```{r}
+ggplot(THE_OFFICE)+
+  geom_point(mapping = aes(x=air_date, y=imdb_rating, color=season))+
+  theme_classic()+
+  theme(axis.ticks.x = element_blank(), plot.title = element_text(hjust = 0.5))+
+  scale_y_continuous(n.breaks = 5, limits = c(6.5,10))+
+  labs(x="Release Date", y="IMDB Rating")+
+  ggtitle("IMDb Rating for Each Episode of The Office")+
+  ggsave(file.path("../Group 2 Figures/Episode_Rating.pdf"))
+
+```
+
+Looking at this graph, it can be seen that the peak reception of The Office occurred approximately from seasons 2 through 5. After this period, there seems to be a drastic reduction in audience reception in season 6,7, and even more so in season 8 while there is a slight return to audience favor for the final season. Despite a significant drop-off in ratings in the later seasons, the last season contained some of the highest rated individual episodes.
+
+**Analysis for Total Votes on each Episode by Season:**
+
+Analysis of Variance for the average total votes by each season of The Office.
+
+```{r}
+#fitting the ANOVA model
+(fit_total_votes <- aov(total_votes ~ season, data = THE_OFFICE))
+#Type III test of fixed effect
+drop1(fit_total_votes,~.,test="F")
+```
+
+The Type III test of fixed effects from our ANOVA model shows the average total votes is significantly different across the different seasons of the TV show. Diagnostic plots below show we have fairly even variance across the different season with the exceptions of a few large outliers. Other than those outliers, most data points follow a normal distribution shown in the Normal Q-Q plot.
+
+```{r}
+#diagnostics plots
+plot(fit_total_votes)
+```
+
+```{r}
+#plotting the means
+plotmeans(total_votes~season, data = THE_OFFICE, xlab="Season",
+  ylab="Total Votes", main="Mean Plot\nwith 95% CI")
+```
+
+```{r}
+#Saved into Group 2 Figures:
+pdf(file = "../Group 2 Figures/Total Votes Mean Plot.pdf")
+plotmeans(total_votes~season, data = THE_OFFICE, xlab="Season",
+  ylab="Total Votes", main="Mean Plot\nwith 95% CI")
+```
+
+The total votes per episode decreases as the season of The Office progresses. It can be assumed that overall view interest and reviewing and rating each episode drops as the seasons progress with a few exceptions as seen in our outlier analysis.
+
+**Data Visualization (Total Votes):**
+
+We used a boxplot to create the initial visualization of this data which helped us to identify the presence of outliers as well as very different variances and means. From this starting point, the ANOVA tables and this boxplot, we began to try and look at the data in different ways.
+
+```{r}
+ggplot(THE_OFFICE, aes(x=season, y=total_votes)) + 
+  geom_boxplot(color = "blue", fill = "orange")+
+  labs(x = "Season", y = "Total Votes")+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  ggtitle("Audeince Votes by Season of The Office")+
+  ggsave(file.path("../Group 2 Figures/Total_Votes_by_Season.pdf"))
+```
+
+Compared to the initial boxplot for the IMDB Rating, it seems that the data set for Total Votes has more outliers, including very significant ones, while at the same time having a much more tight distribution around the mean.
+
+This graph is a continuation of the logic from the previous graph as it looks at the number of votes on each season of The Office. The data of "Number of Voters" may help understand how the audience is interacting with each season of The Office and may relate to the overall Imdb rating as well.
+
+Looking at this graph, the audience seems to have a declining interaction with each season of The Office over time. The first season had the greatest interaction and each following season had a declining number of votes to rate the season. There is a significant decline following season 6 that somewhat mirrors the decline in overall rating from the previous graph.
+
+This graph shows the total votes cast over time and shows each episode broken down by season. As can be seen in this graph, there is a declining interaction with the show through these votes over time with significant exceptions in several seasons.
+
+```{r}
+ggplot(THE_OFFICE)+
+  geom_point(mapping = aes(x=air_date, y=total_votes, color=season))+
+  theme_classic()+
+  labs(x = "Release Date", y = "Total Votes")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  ggtitle("Total Votes on Each Episode of The Office")+
+  ggsave(file.path("../Group 2 Figures/Total_Votes_by_Episode.pdf"))
+```
+
+**Conclusion:**
+
+The Office was a highly successful and much beloved show on television for over eight years and nine seasons, however, looking at this data is it clear that there was attrition to both the show's perception by the audience and overall interaction with the show as time went on. Specifically looking at the IMDB rating for each season and episode, this network comedy peaked between 2008-09 in season four and five with the subsequent seasons showing marked declines in audience rating for the last four seasons of The Office. This decline was only offset by the last several episodes in the final season of this show as they received some of the highest audience ratings ever recorded. The next highest episode rating was recorded for Steve Carrell's final episode on the show, Season 7 Episode 21. This indicates that audience ratings may reflect overall excitement with the show and not necessarily a true metric for episode quality as these significantly pivotal episodes received disproportionately higher ratings than other episodes, potentially because of their immediate significance to the audience. Audience interaction with the show was evaluated using the total votes variable which exhibited similar trends to the IMDB variable. General attrition in the number of votes is clearly seen in this data set as the number of votes per episode and subsequently by season decline in an almost linear fashion following season one. Again, with the exception of significant episodes in the life of The Office that are outliers, this trend is clearly reflected in this data.
+
+Even though The Office has consistently been praised for its longevity and continued success throughout its eight year run, the data our group analyzed clearly shows a trend towards lower audience ratings over time and declining audience interaction as more episodes and seasons are released.
